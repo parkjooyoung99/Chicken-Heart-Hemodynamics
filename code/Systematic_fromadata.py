@@ -13,11 +13,10 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import random
 import math
-import ot
-from sklearn.decomposition import PCA
+
 
 # Define the function
-def detect_domain(adata, file_path, cutoff_point, R_HOME, tools, box_size, threshold=0.65,  datatype='Slide', device=None, number_cluster=None, seed = None):
+def detect_domain(adata, file_path, cutoff_point, R_HOME, tools, threshold=0.65, box_size=4,  datatype='Slide', device=None, number_cluster=None, seed = None):
     """
     Function to train the GraphST model on the input data, perform clustering, and save the results.
 
@@ -70,34 +69,28 @@ def detect_domain(adata, file_path, cutoff_point, R_HOME, tools, box_size, thres
 
     # Detect clusters using ARI cluster detection
     if number_cluster is None:
-        print(f"Finding Optimal number of clusters with {tools}")
+        print('Finding Optimal number of clusters with {tools}' )  # Only printed when number_cluster is None
         if tools == 'mclust':
             for i in range(1, 21):  # Looping from 1 to 20 inclusive
                 print(i)
                 clustering(adata, n_clusters=i, method=tools)
                 adata.obs[f'optimalnum_{i}'] = adata.obs['domain']
-        elif tools in ['leiden']:
-            pca = PCA(n_components=20, random_state=42) 
-            embedding = pca.fit_transform(adata.obsm['emb'].copy())
-            adata.obsm['emb_pca'] = embedding
-            sc.pp.neighbors(adata, n_neighbors=50, use_rep='emb_pca')
-            for i in np.arange(0.7, 2, 0.1):
+        elif tools in ['leiden', 'louvain']:
+            for i in range(1, 21):
                 print(i)
-                sc.tl.leiden(adata, random_state=0, resolution=i, key_added= 'leiden')
-                numm = len(adata.obs['leiden'].unique())
-                adata.obs[f'optimalnum_{numm}_leiden_{i}'] = adata.obs['leiden']
+                clustering(adata, n_clusters=i, method=tools, start=0.1, end=2.0, increment=0.01)
+                adata.obs[f'optimalnum_{i}'] = adata.obs['domain']
 
         # Save clustering results to CSV
         adata.obs.filter(like="optimalnum_").to_csv(f'{file_path}/ARI_{tools}_clust.csv')
 
-        number_cluster = ari_cluster_detection(file_path, tools, cutoff_point)
+        number_cluster = ari_cluster_detection(file_path, cutoff_point,tools)
         print(f"Detected cluster number: {number_cluster}")
     else:
         print(f"Use cluster number: {number_cluster}")
 
     print(f'Get Domain of {number_cluster} clusters with {tools}')
-    matched_col = [col for col in adata.obs.columns if f'optimalnum_{number_cluster}' in col][0]
-    adata.obs['domain'] = adata.obs[matched_col]
+    adata.obs['domain'] = adata.obs[f'optimalnum_{number_cluster}']
     
     # Remove previous test result
     adata.obs = adata.obs.drop(columns=adata.obs.filter(like="optimalnum_").columns, errors='ignore')    
@@ -108,7 +101,7 @@ def detect_domain(adata, file_path, cutoff_point, R_HOME, tools, box_size, thres
     return adata, number_cluster
 
 
-def ari_cluster_detection(file_path, tools, cutoff_point, threshold=0.65, box_size=4):
+def ari_cluster_detection(file_path, cutoff_point, tools, threshold=0.65, box_size=4):
     import numpy as np
     
     # Read data
