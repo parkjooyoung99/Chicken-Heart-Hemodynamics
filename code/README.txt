@@ -6,3 +6,4 @@ cell2loc_sc_train_L_exp.py: cell2location sc reference training
 cell2loc_st_train_L_exp.py: cell2location spatial deconvolution
 Systematic_fromadata.py: Function for optimal cluster number detection and GraphST
 st_filtererythrocytes_graphst.py: ST filtering erythrocytes and GraphST
+st_graphST_valve.ipynb: GraphST on Valve region, order subdomains based on plasticity score
